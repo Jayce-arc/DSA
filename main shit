@@ -1,0 +1,997 @@
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Linq;
+using System.Windows.Forms;
+using Timer = System.Windows.Forms.Timer;
+using CoffeeShopPOS.Data;
+using CoffeeShopPOS.Helpers;
+using CoffeeShopPOS.Models;
+
+namespace CoffeeShopPOS.Forms
+{
+    /// <summary>
+    /// Main Point-of-Sale window.
+    /// Layout: Header | [Category Bar + Menu Grid | Order Sidebar]
+    /// </summary>
+    public class MainForm : Form
+    {
+        // ── Application state ──────────────────────────────────────────────
+        private readonly Order              _order       = new Order();
+        private readonly List<MenuItem>     _allItems    = MenuData.GetAllMenuItems();
+        private static  int                 _txnCounter  = 1000;
+        private         string              _activeCategory = "All";
+
+        // ── Layout panels ─────────────────────────────────────────────────
+        private Panel           _pnlHeader;
+        private Panel           _pnlCategoryBar;
+        private Panel           _pnlContent;
+        private FlowLayoutPanel _flpMenu;
+        private Panel           _pnlOrder;
+        private Panel           _pnlOrderItems;   // scrollable item rows
+        private Panel           _pnlTotals;
+        private Panel           _pnlPayment;
+
+        // ── Header controls ───────────────────────────────────────────────
+        private Label  _lblShopName;
+        private Label  _lblClock;
+        private Label  _lblTxnBadge;
+        private Timer  _clockTimer;
+
+        // ── Category buttons ──────────────────────────────────────────────
+        private readonly List<Button> _catButtons = new List<Button>();
+
+        // ── Order sidebar ─────────────────────────────────────────────────
+        private Label   _lblOrderTitle;
+        private Label   _lblItemCount;
+        private Label   _lblSubtotalVal;
+        private Label   _lblTaxVal;
+        private Label   _lblTotalVal;
+        private TextBox _txtPayment;
+        private Label   _lblChangeVal;
+        private Button  _btnCharge;
+        private Button  _btnClear;
+
+        // ── Constants ─────────────────────────────────────────────────────
+        private const int HEADER_H   = 72;
+        private const int CATBAR_H   = 52;
+        private const int SIDEBAR_W  = 360;
+        private const int CARD_W     = 162;
+        private const int CARD_H     = 190;
+
+        // ──────────────────────────────────────────────────────────────────
+        public MainForm()
+        {
+            InitialiseComponent();
+            LoadMenuCards("All");
+            StartClock();
+        }
+
+        // ── Component setup ───────────────────────────────────────────────
+        private void InitialiseComponent()
+        {
+            Text            = "Brew Haven Coffee — POS System";
+            MinimumSize     = new Size(1140, 720);
+            Size            = new Size(1280, 800);
+            StartPosition   = FormStartPosition.CenterScreen;
+            BackColor       = ColorPalette.MenuBg;
+            Font            = new Font("Segoe UI", 9.5f);
+            Icon            = SystemIcons.Application;
+
+            BuildHeader();
+            BuildCategoryBar();
+            BuildContent();
+            BuildOrderPanel();
+
+            // Hook resize so panels fill correctly
+            Resize += (s, e) => AdjustLayout();
+            AdjustLayout();
+        }
+
+        // ── Header ────────────────────────────────────────────────────────
+        private void BuildHeader()
+        {
+            _pnlHeader = new Panel
+            {
+                Dock      = DockStyle.Top,
+                Height    = HEADER_H,
+                BackColor = ColorPalette.HeaderBg
+            };
+
+            // Coffee cup favicon
+            var lblCup = new Label
+            {
+                Text      = "☕",
+                Font      = new Font("Segoe UI Emoji", 24f),
+                ForeColor = ColorPalette.Caramel,
+                AutoSize  = true,
+                Location  = new Point(18, 16)
+            };
+
+            _lblShopName = new Label
+            {
+                Text      = "BREW HAVEN",
+                Font      = new Font("Segoe UI", 22f, FontStyle.Bold),
+                ForeColor = ColorPalette.Cream,
+                AutoSize  = true,
+                Location  = new Point(58, 18)
+            };
+
+            var lblTagline = new Label
+            {
+                Text      = "Coffee & Pastry Shop",
+                Font      = new Font("Segoe UI", 9.5f, FontStyle.Italic),
+                ForeColor = ColorPalette.Latte,
+                AutoSize  = true,
+                Location  = new Point(62, 48)
+            };
+
+            _lblTxnBadge = new Label
+            {
+                Text      = $"TXN #{ _txnCounter + 1:D4}",
+                Font      = new Font("Segoe UI", 10f, FontStyle.Bold),
+                ForeColor = ColorPalette.Caramel,
+                AutoSize  = true
+            };
+
+            _lblClock = new Label
+            {
+                Font      = new Font("Segoe UI", 11f),
+                ForeColor = ColorPalette.Cream,
+                AutoSize  = true,
+                TextAlign = ContentAlignment.MiddleRight
+            };
+
+            _pnlHeader.Controls.AddRange(new Control[]
+                { lblCup, _lblShopName, lblTagline, _lblTxnBadge, _lblClock });
+
+            // Position right-aligned labels on resize
+            _pnlHeader.Resize += (s, e) =>
+            {
+                _lblClock.Location    = new Point(_pnlHeader.Width - _lblClock.Width - 20, 28);
+                _lblTxnBadge.Location = new Point(_pnlHeader.Width - _lblTxnBadge.Width - 20, 10);
+            };
+
+            Controls.Add(_pnlHeader);
+        }
+
+        // ── Category bar ──────────────────────────────────────────────────
+        private void BuildCategoryBar()
+        {
+            _pnlCategoryBar = new Panel
+            {
+                Dock      = DockStyle.Top,
+                Height    = CATBAR_H,
+                BackColor = ColorPalette.CategoryBar,
+                Padding   = new Padding(12, 8, 12, 8)
+            };
+
+            var flp = new FlowLayoutPanel
+            {
+                Dock          = DockStyle.Fill,
+                BackColor     = Color.Transparent,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents  = false,
+                Padding       = new Padding(0)
+            };
+
+            foreach (var cat in MenuData.GetCategories())
+            {
+                var btn = new Button
+                {
+                    Text      = cat == "All" ? $"✦  {cat}" : cat,
+                    Tag       = cat,
+                    AutoSize  = false,
+                    Size      = new Size(cat.Length * 11 + 36, 36),
+                    Margin    = new Padding(0, 0, 8, 0),
+                    FlatStyle = FlatStyle.Flat,
+                    BackColor = cat == "All" ? ColorPalette.CategoryActive : Color.Transparent,
+                    ForeColor = cat == "All" ? ColorPalette.Espresso       : ColorPalette.CategoryText,
+                    Font      = new Font("Segoe UI", 9.5f, cat == "All" ? FontStyle.Bold : FontStyle.Regular),
+                    Cursor    = Cursors.Hand,
+                    UseVisualStyleBackColor = false
+                };
+                btn.FlatAppearance.BorderSize  = 0;
+                btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(80, 255, 255, 255);
+                btn.Click += CatBtn_Click;
+                _catButtons.Add(btn);
+                flp.Controls.Add(btn);
+            }
+
+            _pnlCategoryBar.Controls.Add(flp);
+            Controls.Add(_pnlCategoryBar);
+        }
+
+        // ── Content area (menu + sidebar) ─────────────────────────────────
+        private void BuildContent()
+        {
+            _pnlContent = new Panel
+            {
+                BackColor = ColorPalette.MenuBg
+            };
+
+            // ── Scrollable menu grid ──────────────────────────────────────
+            var menuWrapper = new Panel
+            {
+                BackColor = ColorPalette.MenuBg,
+                AutoScroll = false
+            };
+
+            _flpMenu = new FlowLayoutPanel
+            {
+                Dock         = DockStyle.Fill,
+                AutoScroll   = true,
+                BackColor    = ColorPalette.MenuBg,
+                Padding      = new Padding(14, 14, 0, 14),
+                WrapContents = true
+            };
+            menuWrapper.Controls.Add(_flpMenu);
+            _pnlContent.Controls.Add(menuWrapper);
+            Controls.Add(_pnlContent);
+        }
+
+        // ── Order sidebar ─────────────────────────────────────────────────
+        private void BuildOrderPanel()
+        {
+            _pnlOrder = new Panel
+            {
+                BackColor = ColorPalette.OrderPanelBg,
+                Width     = SIDEBAR_W
+            };
+
+            // Title
+            var titleBar = new Panel
+            {
+                Dock      = DockStyle.Top,
+                Height    = 54,
+                BackColor = ColorPalette.DarkMocha
+            };
+            var lblCart = new Label
+            {
+                Text      = "🛒  Your Order",
+                Font      = new Font("Segoe UI", 13f, FontStyle.Bold),
+                ForeColor = ColorPalette.Cream,
+                AutoSize  = false,
+                Bounds    = new Rectangle(14, 0, 260, 54),
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+            _lblItemCount = new Label
+            {
+                Text      = "0 items",
+                Font      = new Font("Segoe UI", 9f),
+                ForeColor = ColorPalette.Latte,
+                AutoSize  = false,
+                Bounds    = new Rectangle(0, 0, SIDEBAR_W - 14, 54),
+                TextAlign = ContentAlignment.MiddleRight
+            };
+            titleBar.Controls.AddRange(new Control[] { lblCart, _lblItemCount });
+            _pnlOrder.Controls.Add(titleBar);
+
+            // Scrollable order items
+            _pnlOrderItems = new Panel
+            {
+                AutoScroll  = true,
+                BackColor   = ColorPalette.OrderPanelBg,
+                Location    = new Point(0, 54),
+                Width       = SIDEBAR_W
+            };
+            _pnlOrder.Controls.Add(_pnlOrderItems);
+
+            // Totals block
+            _pnlTotals = new Panel
+            {
+                BackColor = Color.White,
+                Width     = SIDEBAR_W,
+                Height    = 102
+            };
+            BuildTotalsPanel();
+            _pnlOrder.Controls.Add(_pnlTotals);
+
+            // Payment block
+            _pnlPayment = new Panel
+            {
+                BackColor = ColorPalette.TotalBarBg,
+                Width     = SIDEBAR_W,
+                Height    = 192
+            };
+            BuildPaymentPanel();
+            _pnlOrder.Controls.Add(_pnlPayment);
+
+            Controls.Add(_pnlOrder);
+        }
+
+        private void BuildTotalsPanel()
+        {
+            int y = 10;
+            void Row(string label, ref Label valLbl, bool big = false)
+            {
+                var lbl = new Label
+                {
+                    Text      = label,
+                    Location  = new Point(14, y),
+                    Size      = new Size(180, 24),
+                    Font      = big ? new Font("Segoe UI", 10.5f, FontStyle.Bold)
+                                    : new Font("Segoe UI", 9.5f),
+                    ForeColor = big ? ColorPalette.Espresso : ColorPalette.TextMid,
+                    TextAlign = ContentAlignment.MiddleLeft
+                };
+                valLbl = new Label
+                {
+                    Text      = "₱0.00",
+                    Location  = new Point(190, y),
+                    Size      = new Size(SIDEBAR_W - 204, 24),
+                    Font      = big ? new Font("Segoe UI", 10.5f, FontStyle.Bold)
+                                    : new Font("Segoe UI", 9.5f),
+                    ForeColor = big ? ColorPalette.Espresso : ColorPalette.TextMid,
+                    TextAlign = ContentAlignment.MiddleRight
+                };
+                _pnlTotals.Controls.Add(lbl);
+                _pnlTotals.Controls.Add(valLbl);
+                y += 28;
+            }
+
+            Row("Subtotal",    ref _lblSubtotalVal);
+            Row("VAT (12%)",   ref _lblTaxVal);
+
+            var div = new Panel
+            {
+                Location  = new Point(14, y),
+                Size      = new Size(SIDEBAR_W - 28, 1),
+                BackColor = ColorPalette.Divider
+            };
+            _pnlTotals.Controls.Add(div);
+            y += 8;
+
+            Row("TOTAL",       ref _lblTotalVal, big: true);
+        }
+
+        private void BuildPaymentPanel()
+        {
+            int y = 14;
+
+            var lblPayLabel = new Label
+            {
+                Text      = "Cash Tendered  (₱)",
+                Font      = new Font("Segoe UI", 9.5f),
+                ForeColor = ColorPalette.Latte,
+                Location  = new Point(14, y),
+                AutoSize  = true
+            };
+            y += 24;
+
+            _txtPayment = new TextBox
+            {
+                Location     = new Point(14, y),
+                Size         = new Size(SIDEBAR_W - 28, 38),
+                Font         = new Font("Segoe UI", 15f, FontStyle.Bold),
+                ForeColor    = Color.White,
+                BackColor    = Color.FromArgb(70, 48, 28),
+                BorderStyle  = BorderStyle.FixedSingle,
+                TextAlign    = HorizontalAlignment.Right,
+                Text         = "0"
+            };
+            _txtPayment.TextChanged += TxtPayment_TextChanged;
+            y += 46;
+
+            var lblChangeLabel = new Label
+            {
+                Text      = "Change",
+                Font      = new Font("Segoe UI", 9.5f),
+                ForeColor = ColorPalette.Latte,
+                Location  = new Point(14, y),
+                AutoSize  = true
+            };
+            _lblChangeVal = new Label
+            {
+                Text      = "₱0.00",
+                Font      = new Font("Segoe UI", 14f, FontStyle.Bold),
+                ForeColor = ColorPalette.Caramel,
+                Location  = new Point(SIDEBAR_W / 2, y),
+                Size      = new Size(SIDEBAR_W / 2 - 14, 28),
+                TextAlign = ContentAlignment.MiddleRight
+            };
+            y += 32;
+
+            _btnCharge = new Button
+            {
+                Text      = "✓  CHARGE",
+                Location  = new Point(14, y),
+                Size      = new Size(SIDEBAR_W - 28, 44),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = ColorPalette.BtnCharge,
+                ForeColor = Color.White,
+                Font      = new Font("Segoe UI", 13f, FontStyle.Bold),
+                Cursor    = Cursors.Hand,
+                UseVisualStyleBackColor = false
+            };
+            _btnCharge.FlatAppearance.BorderSize = 0;
+            _btnCharge.Click += BtnCharge_Click;
+            y += 52;
+
+            _btnClear = new Button
+            {
+                Text      = "✕  Clear Order",
+                Location  = new Point(14, y),
+                Size      = new Size(SIDEBAR_W - 28, 36),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = ColorPalette.BtnClear,
+                ForeColor = Color.White,
+                Font      = new Font("Segoe UI", 10f, FontStyle.Bold),
+                Cursor    = Cursors.Hand,
+                UseVisualStyleBackColor = false
+            };
+            _btnClear.FlatAppearance.BorderSize = 0;
+            _btnClear.Click += BtnClear_Click;
+
+            _pnlPayment.Controls.AddRange(new Control[]
+            {
+                lblPayLabel, _txtPayment,
+                lblChangeLabel, _lblChangeVal,
+                _btnCharge, _btnClear
+            });
+        }
+
+        // ── Layout adjustment on resize ───────────────────────────────────
+        private void AdjustLayout()
+        {
+            int topOffset  = HEADER_H + CATBAR_H;
+            int bodyHeight = ClientSize.Height - topOffset;
+            int menuWidth  = ClientSize.Width  - SIDEBAR_W;
+
+            _pnlContent.Bounds = new Rectangle(0, topOffset, menuWidth, bodyHeight);
+
+            // Keep FlowLayoutPanel filling content
+            foreach (Control c in _pnlContent.Controls)
+                c.Bounds = new Rectangle(0, 0, menuWidth, bodyHeight);
+
+            _pnlOrder.Bounds = new Rectangle(menuWidth, topOffset, SIDEBAR_W, bodyHeight);
+            PositionOrderSubPanels(bodyHeight);
+
+            // Reposition right-aligned header labels
+            _lblClock.Location    = new Point(_pnlHeader.Width - _lblClock.Width   - 20, 28);
+            _lblTxnBadge.Location = new Point(_pnlHeader.Width - _lblTxnBadge.Width - 20, 10);
+        }
+
+        private void PositionOrderSubPanels(int bodyHeight)
+        {
+            int bottomH     = _pnlTotals.Height + _pnlPayment.Height;
+            int itemAreaH   = bodyHeight - 54 - bottomH;
+
+            _pnlOrderItems.Bounds = new Rectangle(0, 54,              SIDEBAR_W, itemAreaH);
+            _pnlTotals.Bounds     = new Rectangle(0, 54 + itemAreaH,  SIDEBAR_W, _pnlTotals.Height);
+            _pnlPayment.Bounds    = new Rectangle(0, 54 + itemAreaH + _pnlTotals.Height, SIDEBAR_W, _pnlPayment.Height);
+        }
+
+        // ── Load menu cards ───────────────────────────────────────────────
+        private void LoadMenuCards(string category)
+        {
+            _flpMenu.SuspendLayout();
+            _flpMenu.Controls.Clear();
+
+            var items = category == "All"
+                ? _allItems
+                : _allItems.Where(i => i.Category == category).ToList();
+
+            foreach (var item in items)
+                _flpMenu.Controls.Add(CreateMenuCard(item));
+
+            _flpMenu.ResumeLayout(true);
+        }
+
+        // ── Create one menu card ──────────────────────────────────────────
+        private Panel CreateMenuCard(MenuItem item)
+        {
+            var card = new Panel
+            {
+                Size      = new Size(CARD_W, CARD_H),
+                BackColor = ColorPalette.CardBg,
+                Cursor    = Cursors.Hand,
+                Margin    = new Padding(0, 0, 12, 12),
+                Tag       = item
+            };
+            card.Paint += Card_Paint;
+
+            // Image
+            var img = new PictureBox
+            {
+                Location = new Point(11, 12),
+                Size     = new Size(140, 108),
+                SizeMode = PictureBoxSizeMode.Zoom,
+                BackColor= Color.FromArgb(248, 244, 238),
+                Image    = ImageGenerator.GetMenuItemImage(item),
+                Tag      = item,
+                Cursor   = Cursors.Hand
+            };
+
+            // Category badge
+            var lblCat = new Label
+            {
+                Text      = item.Category.Replace(" Coffee", ""),
+                Font      = new Font("Segoe UI", 7f),
+                ForeColor = Color.White,
+                BackColor = item.ThemeColor,
+                AutoSize  = false,
+                Size      = new Size(64, 16),
+                TextAlign = ContentAlignment.MiddleCenter,
+                Location  = new Point(11, 10),
+                Tag       = item
+            };
+
+            // Name label
+            var lblName = new Label
+            {
+                Text      = item.Name,
+                Font      = new Font("Segoe UI", 9.5f, FontStyle.Bold),
+                ForeColor = ColorPalette.TextDark,
+                AutoSize  = false,
+                Size      = new Size(CARD_W - 22, 36),
+                TextAlign = ContentAlignment.MiddleLeft,
+                Location  = new Point(11, 126),
+                Tag       = item
+            };
+
+            // Price label
+            var lblPrice = new Label
+            {
+                Text      = $"₱{item.BasePrice:F0}",
+                Font      = new Font("Segoe UI", 11f, FontStyle.Bold),
+                ForeColor = ColorPalette.PriceGreen,
+                AutoSize  = false,
+                Size      = new Size(CARD_W - 22, 24),
+                TextAlign = ContentAlignment.MiddleLeft,
+                Location  = new Point(11, 158),
+                Tag       = item
+            };
+
+            // Size indicator
+            if (item.HasSizes)
+            {
+                var lblSize = new Label
+                {
+                    Text      = "S/M/L",
+                    Font      = new Font("Segoe UI", 7f),
+                    ForeColor = ColorPalette.TextMuted,
+                    AutoSize  = true,
+                    Location  = new Point(CARD_W - 50, 162),
+                    Tag       = item
+                };
+                card.Controls.Add(lblSize);
+                lblSize.Click += MenuCard_Click;
+            }
+
+            card.Controls.AddRange(new Control[]
+                { img, lblCat, lblName, lblPrice });
+
+            // Wire all child controls to the same click handler
+            foreach (Control c in card.Controls)
+                c.Click += MenuCard_Click;
+            card.Click += MenuCard_Click;
+
+            // Hover highlight
+            void enter(object s, EventArgs e) => card.BackColor = ColorPalette.CardHover;
+            void leave(object s, EventArgs e) => card.BackColor = ColorPalette.CardBg;
+
+            card.MouseEnter  += enter;
+            card.MouseLeave  += leave;
+            img.MouseEnter   += enter;
+            img.MouseLeave   += leave;
+            lblName.MouseEnter += enter;
+            lblName.MouseLeave += leave;
+
+            return card;
+        }
+
+        // ── Custom card border (rounded + shadow) ─────────────────────────
+        private void Card_Paint(object sender, PaintEventArgs e)
+        {
+            var c = (Panel)sender;
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+
+            // Drop shadow
+            using (var shadow = new SolidBrush(Color.FromArgb(18, 0, 0, 0)))
+                g.FillRoundedRectangle(shadow, 3, 3, c.Width - 4, c.Height - 4, 10);
+
+            // Card body
+            using (var b = new SolidBrush(c.BackColor))
+                g.FillRoundedRectangle(b, 0, 0, c.Width - 3, c.Height - 3, 10);
+
+            // Border
+            using (var pen = new Pen(ColorPalette.CardBorder, 1f))
+                g.DrawRoundedRectangle(pen, 0, 0, c.Width - 4, c.Height - 4, 10);
+        }
+
+        // ── Refresh order item rows ───────────────────────────────────────
+        private void RefreshOrderPanel()
+        {
+            _pnlOrderItems.SuspendLayout();
+            _pnlOrderItems.Controls.Clear();
+
+            int y = 6;
+            for (int i = 0; i < _order.Items.Count; i++)
+            {
+                var row = CreateOrderRow(_order.Items[i], i);
+                row.Top = y;
+                _pnlOrderItems.Controls.Add(row);
+                y += row.Height + 4;
+            }
+
+            _pnlOrderItems.ResumeLayout(true);
+            UpdateTotals();
+            UpdateItemCount();
+        }
+
+        // ── One order row ─────────────────────────────────────────────────
+        private Panel CreateOrderRow(OrderItem oi, int index)
+        {
+            bool hasAddOns = !string.IsNullOrEmpty(oi.AddOnsDescription);
+            int  rowH      = hasAddOns ? 72 : 56;
+
+            var row = new Panel
+            {
+                Size      = new Size(SIDEBAR_W, rowH),
+                BackColor = Color.White,
+                Margin    = new Padding(0)
+            };
+
+            // Left coloured stripe
+            var stripe = new Panel
+            {
+                Location  = new Point(0, 0),
+                Size      = new Size(4, rowH),
+                BackColor = oi.Item.ThemeColor
+            };
+
+            // Name + size
+            var lblName = new Label
+            {
+                Text      = oi.DisplayName,
+                Font      = new Font("Segoe UI", 9f, FontStyle.Bold),
+                ForeColor = ColorPalette.TextDark,
+                AutoSize  = false,
+                Location  = new Point(12, 8),
+                Size      = new Size(200, 20),
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+
+            // Add-ons text
+            if (hasAddOns)
+            {
+                var lblAddOns = new Label
+                {
+                    Text      = "+ " + oi.AddOnsDescription,
+                    Font      = new Font("Segoe UI", 7.5f),
+                    ForeColor = ColorPalette.TextMuted,
+                    AutoSize  = false,
+                    Location  = new Point(12, 28),
+                    Size      = new Size(220, 18),
+                    TextAlign = ContentAlignment.MiddleLeft
+                };
+                row.Controls.Add(lblAddOns);
+            }
+
+            // Qty — — +
+            var btnQMinus = SmallBtn("−", new Point(12, hasAddOns ? 48 : 32));
+            var lblQty    = new Label
+            {
+                Text      = oi.Quantity.ToString(),
+                Font      = new Font("Segoe UI", 9.5f, FontStyle.Bold),
+                ForeColor = ColorPalette.Espresso,
+                AutoSize  = false,
+                Size      = new Size(30, 22),
+                TextAlign = ContentAlignment.MiddleCenter,
+                Location  = new Point(40, hasAddOns ? 48 : 32)
+            };
+            var btnQPlus  = SmallBtn("+", new Point(68, hasAddOns ? 48 : 32));
+
+            int capturedIndex = index;
+            btnQMinus.Click += (s, e) =>
+            {
+                if (_order.Items[capturedIndex].Quantity > 1)
+                    _order.Items[capturedIndex].Quantity--;
+                else
+                    _order.RemoveItemAt(capturedIndex);
+                RefreshOrderPanel();
+            };
+            btnQPlus.Click += (s, e) =>
+            {
+                if (_order.Items[capturedIndex].Quantity < 99)
+                    _order.Items[capturedIndex].Quantity++;
+                RefreshOrderPanel();
+            };
+
+            // Price
+            var lblPrice = new Label
+            {
+                Text      = $"₱{oi.TotalPrice:F2}",
+                Font      = new Font("Segoe UI", 9.5f, FontStyle.Bold),
+                ForeColor = ColorPalette.Espresso,
+                AutoSize  = false,
+                Size      = new Size(80, rowH),
+                TextAlign = ContentAlignment.MiddleRight,
+                Location  = new Point(SIDEBAR_W - 110, 0)
+            };
+
+            // Delete button
+            var btnDel = new Button
+            {
+                Text      = "✕",
+                Location  = new Point(SIDEBAR_W - 30, (rowH - 24) / 2),
+                Size      = new Size(24, 24),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = ColorPalette.BtnRemove,
+                ForeColor = Color.White,
+                Font      = new Font("Segoe UI", 8f, FontStyle.Bold),
+                Cursor    = Cursors.Hand,
+                UseVisualStyleBackColor = false
+            };
+            btnDel.FlatAppearance.BorderSize = 0;
+            btnDel.Click += (s, e) =>
+            {
+                _order.RemoveItemAt(capturedIndex);
+                RefreshOrderPanel();
+            };
+
+            // Hover
+            row.MouseEnter += (s, e) => row.BackColor = ColorPalette.CardHover;
+            row.MouseLeave += (s, e) => row.BackColor = Color.White;
+
+            row.Controls.AddRange(new Control[]
+                { stripe, lblName, btnQMinus, lblQty, btnQPlus, lblPrice, btnDel });
+
+            return row;
+        }
+
+        private Button SmallBtn(string text, Point loc)
+        {
+            var btn = new Button
+            {
+                Text      = text,
+                Location  = loc,
+                Size      = new Size(24, 22),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = ColorPalette.Divider,
+                ForeColor = ColorPalette.TextDark,
+                Font      = new Font("Segoe UI", 10f, FontStyle.Bold),
+                Cursor    = Cursors.Hand,
+                UseVisualStyleBackColor = false
+            };
+            btn.FlatAppearance.BorderSize = 0;
+            return btn;
+        }
+
+        // ── Update totals labels ──────────────────────────────────────────
+        private void UpdateTotals()
+        {
+            _lblSubtotalVal.Text = $"₱{_order.Subtotal:F2}";
+            _lblTaxVal.Text      = $"₱{_order.TaxAmount:F2}";
+            _lblTotalVal.Text    = $"₱{_order.Total:F2}";
+            RecalcChange();
+        }
+
+        private void UpdateItemCount()
+        {
+            int count = _order.ItemCount;
+            _lblItemCount.Text = count == 0 ? "Empty" : $"{count} item{(count == 1 ? "" : "s")}";
+        }
+
+        private void RecalcChange()
+        {
+            if (decimal.TryParse(_txtPayment.Text, out decimal paid) && paid > 0)
+            {
+                decimal change = _order.CalculateChange(paid);
+                _lblChangeVal.Text = $"₱{change:F2}";
+                _lblChangeVal.ForeColor = change < 0
+                    ? ColorPalette.BtnClear
+                    : ColorPalette.Caramel;
+            }
+            else
+            {
+                _lblChangeVal.Text      = "₱0.00";
+                _lblChangeVal.ForeColor = ColorPalette.Caramel;
+            }
+        }
+
+        // ── Clock ─────────────────────────────────────────────────────────
+        private void StartClock()
+        {
+            _clockTimer          = new Timer { Interval = 1000 };
+            _clockTimer.Tick    += (s, e) =>
+            {
+                _lblClock.Text = DateTime.Now.ToString("ddd, MMM dd  hh:mm:ss tt");
+                AdjustLayout();
+            };
+            _clockTimer.Start();
+            _lblClock.Text = DateTime.Now.ToString("ddd, MMM dd  hh:mm:ss tt");
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        //  EVENT HANDLERS
+        // ═══════════════════════════════════════════════════════════════════
+
+        // ── Category button click ──────────────────────────────────────────
+        private void CatBtn_Click(object sender, EventArgs e)
+        {
+            var btn = (Button)sender;
+            string cat = (string)btn.Tag;
+            _activeCategory = cat;
+
+            foreach (var b in _catButtons)
+            {
+                bool active = (string)b.Tag == cat;
+                b.BackColor = active ? ColorPalette.CategoryActive : Color.Transparent;
+                b.ForeColor = active ? ColorPalette.Espresso       : ColorPalette.CategoryText;
+                b.Font      = new Font("Segoe UI", 9.5f,
+                                   active ? FontStyle.Bold : FontStyle.Regular);
+            }
+
+            LoadMenuCards(cat);
+        }
+
+        // ── Menu card click → open customisation dialog ────────────────────
+        private void MenuCard_Click(object sender, EventArgs e)
+        {
+            // Retrieve MenuItem from Tag of the clicked control or its parent
+            MenuItem item = null;
+            var ctrl = sender as Control;
+            while (ctrl != null && item == null)
+            {
+                item = ctrl.Tag as MenuItem;
+                ctrl = ctrl.Parent;
+            }
+            if (item == null) return;
+
+            using (var dlg = new CustomizationForm(item))
+            {
+                if (dlg.ShowDialog(this) == DialogResult.OK && dlg.ResultItem != null)
+                {
+                    _order.AddItem(dlg.ResultItem);
+                    RefreshOrderPanel();
+
+                    // Brief flash on card to confirm add
+                    FlashCard(item.Id);
+                }
+            }
+        }
+
+        private void FlashCard(int itemId)
+        {
+            foreach (Control c in _flpMenu.Controls)
+            {
+                if (c is Panel p && p.Tag is MenuItem mi && mi.Id == itemId)
+                {
+                    p.BackColor = Color.FromArgb(210, 255, 220);
+                    var t = new Timer { Interval = 300 };
+                    t.Tick += (s, e) =>
+                    {
+                        p.BackColor = ColorPalette.CardBg;
+                        ((Timer)s).Stop();
+                    };
+                    t.Start();
+                    break;
+                }
+            }
+        }
+
+        // ── Payment amount changed ─────────────────────────────────────────
+        private void TxtPayment_TextChanged(object sender, EventArgs e)
+        {
+            // Only allow digits and one decimal point
+            string raw = _txtPayment.Text;
+            string clean = string.Concat(raw.Where(ch => char.IsDigit(ch) || ch == '.'));
+            if (clean != raw)
+            {
+                _txtPayment.Text = clean;
+                _txtPayment.SelectionStart = clean.Length;
+            }
+            RecalcChange();
+        }
+
+        // ── Charge button ─────────────────────────────────────────────────
+        private void BtnCharge_Click(object sender, EventArgs e)
+        {
+            if (_order.Items.Count == 0)
+            {
+                MessageBox.Show("The order is empty.\nPlease add items before charging.",
+                    "Empty Order", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (!decimal.TryParse(_txtPayment.Text, out decimal paid) || paid <= 0)
+            {
+                MessageBox.Show("Please enter the cash amount tendered.",
+                    "No Payment", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                _txtPayment.Focus();
+                return;
+            }
+
+            if (paid < _order.Total)
+            {
+                MessageBox.Show($"Payment is insufficient.\n" +
+                    $"Total: ₱{_order.Total:F2}\n" +
+                    $"Tendered: ₱{paid:F2}\n" +
+                    $"Shortfall: ₱{_order.Total - paid:F2}",
+                    "Insufficient Payment", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                _txtPayment.Focus();
+                return;
+            }
+
+            int txnId = ++_txnCounter;
+            using (var receipt = new ReceiptForm(_order, paid, txnId))
+            {
+                var result = receipt.ShowDialog(this);
+                if (result == DialogResult.Yes)
+                {
+                    // New order
+                    StartNewOrder();
+                }
+                else
+                {
+                    // Just closed — still start a fresh order
+                    StartNewOrder();
+                }
+            }
+        }
+
+        private void StartNewOrder()
+        {
+            _order.Clear();
+            _txtPayment.Text = "0";
+            RefreshOrderPanel();
+            _lblTxnBadge.Text = $"TXN #{_txnCounter + 1:D4}";
+        }
+
+        // ── Clear button ──────────────────────────────────────────────────
+        private void BtnClear_Click(object sender, EventArgs e)
+        {
+            if (_order.Items.Count == 0) return;
+
+            if (MessageBox.Show("Clear all items from the order?",
+                    "Clear Order", MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question) == DialogResult.Yes)
+            {
+                StartNewOrder();
+            }
+        }
+
+        // ── Form closing ──────────────────────────────────────────────────
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            _clockTimer?.Stop();
+            base.OnFormClosing(e);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  GDI+ Extension methods for rounded rectangles
+    // ═══════════════════════════════════════════════════════════════════
+    internal static class GraphicsExtensions
+    {
+        public static void FillRoundedRectangle(this Graphics g, Brush brush,
+            int x, int y, int width, int height, int radius)
+        {
+            using (var path = MakePath(x, y, width, height, radius))
+                g.FillPath(brush, path);
+        }
+
+        public static void DrawRoundedRectangle(this Graphics g, Pen pen,
+            int x, int y, int width, int height, int radius)
+        {
+            using (var path = MakePath(x, y, width, height, radius))
+                g.DrawPath(pen, path);
+        }
+
+        private static GraphicsPath MakePath(int x, int y, int w, int h, int r)
+        {
+            int d = r * 2;
+            var path = new GraphicsPath();
+            path.AddArc(x,         y,         d, d, 180, 90);
+            path.AddArc(x + w - d, y,         d, d, 270, 90);
+            path.AddArc(x + w - d, y + h - d, d, d,   0, 90);
+            path.AddArc(x,         y + h - d, d, d,  90, 90);
+            path.CloseFigure();
+            return path;
+        }
+    }
+}
