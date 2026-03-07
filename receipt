@@ -1,0 +1,281 @@
+using System;
+using System.Drawing;
+using System.Drawing.Printing;
+using System.Linq;
+using System.Text;
+using System.Windows.Forms;
+using CoffeeShopPOS.Helpers;
+using CoffeeShopPOS.Models;
+
+namespace CoffeeShopPOS.Forms
+{
+    /// <summary>
+    /// Displays a realistic printable receipt in a dedicated window.
+    /// Mimics a 80mm thermal receipt printer layout.
+    /// </summary>
+    public class ReceiptForm : Form
+    {
+        // ── Data ──────────────────────────────────────────────────────────
+        private readonly Order    _order;
+        private readonly decimal  _amountPaid;
+        private readonly decimal  _change;
+        private readonly int      _transactionId;
+
+        // ── Controls ──────────────────────────────────────────────────────
+        private RichTextBox _rtbReceipt;
+        private Button      _btnPrint, _btnNewOrder, _btnClose;
+
+        // ── Fonts ─────────────────────────────────────────────────────────
+        private static readonly Font FontNormal  = new Font("Courier New", 9.5f);
+        private static readonly Font FontBold    = new Font("Courier New", 9.5f, FontStyle.Bold);
+        private static readonly Font FontHeader  = new Font("Courier New", 12f, FontStyle.Bold);
+        private static readonly Font FontSmall   = new Font("Courier New", 8.5f);
+        private static readonly Font FontTotal   = new Font("Courier New", 11f, FontStyle.Bold);
+
+        // ──────────────────────────────────────────────────────────────────
+        public ReceiptForm(Order order, decimal amountPaid, int transactionId)
+        {
+            _order         = order;
+            _amountPaid    = amountPaid;
+            _change        = order.CalculateChange(amountPaid);
+            _transactionId = transactionId;
+
+            InitialiseComponent();
+            RenderReceipt();
+        }
+
+        private void InitialiseComponent()
+        {
+            Text            = $"Receipt – Transaction #{_transactionId:D4}";
+            Size            = new Size(480, 680);
+            StartPosition   = FormStartPosition.CenterParent;
+            FormBorderStyle = FormBorderStyle.None;
+            BackColor       = Color.FromArgb(45, 30, 20);
+
+            // ── Title bar ─────────────────────────────────────────────────
+            var header = new Panel
+            {
+                Dock      = DockStyle.Top,
+                Height    = 52,
+                BackColor = ColorPalette.Espresso
+            };
+            var lblTitle = new Label
+            {
+                Text      = $"🧾  Transaction #{_transactionId:D4}",
+                ForeColor = ColorPalette.Caramel,
+                Font      = new Font("Segoe UI", 12f, FontStyle.Bold),
+                AutoSize  = false,
+                Bounds    = new Rectangle(0, 0, 430, 52),
+                TextAlign = ContentAlignment.MiddleCenter
+            };
+            var btnX = new Button
+            {
+                Text      = "✕",
+                ForeColor = Color.White,
+                BackColor = Color.Transparent,
+                FlatStyle = FlatStyle.Flat,
+                Bounds    = new Rectangle(438, 10, 32, 32),
+                Font      = new Font("Segoe UI", 10f),
+                Cursor    = Cursors.Hand
+            };
+            btnX.FlatAppearance.BorderSize = 0;
+            btnX.Click += (s, e) => Close();
+            header.Controls.AddRange(new Control[] { lblTitle, btnX });
+            Controls.Add(header);
+
+            // ── Receipt paper panel ───────────────────────────────────────
+            var paperBg = new Panel
+            {
+                Location  = new Point(20, 62),
+                Size      = new Size(440, 540),
+                BackColor = Color.White
+            };
+
+            _rtbReceipt = new RichTextBox
+            {
+                Dock      = DockStyle.Fill,
+                ReadOnly  = true,
+                BackColor = Color.White,
+                BorderStyle = BorderStyle.None,
+                ScrollBars  = RichTextBoxScrollBars.Vertical,
+                Margin    = new Padding(0)
+            };
+            paperBg.Controls.Add(_rtbReceipt);
+            Controls.Add(paperBg);
+
+            // ── Action buttons ────────────────────────────────────────────
+            var footer = new Panel
+            {
+                Bounds    = new Rectangle(0, 612, 480, 68),
+                BackColor = Color.FromArgb(55, 38, 22)
+            };
+
+            _btnPrint    = FooterBtn("🖨  Print",       new Point(12,  14), ColorPalette.Mocha,    130);
+            _btnNewOrder = FooterBtn("✚  New Order",   new Point(156, 14), ColorPalette.BtnCharge, 152);
+            _btnClose    = FooterBtn("✕  Close",       new Point(322, 14), ColorPalette.BtnClear,  130);
+
+            _btnPrint.Click    += BtnPrint_Click;
+            _btnNewOrder.Click += (s, e) => { DialogResult = DialogResult.Yes; Close(); };
+            _btnClose.Click    += (s, e) => { DialogResult = DialogResult.No;  Close(); };
+
+            footer.Controls.AddRange(new Control[] { _btnPrint, _btnNewOrder, _btnClose });
+            Controls.Add(footer);
+        }
+
+        // ── Render receipt text ───────────────────────────────────────────
+        private void RenderReceipt()
+        {
+            _rtbReceipt.Clear();
+
+            Append(FontHeader, ColorPalette.Espresso, center("☕  BREW HAVEN COFFEE  ☕") + "\n");
+            Append(FontSmall,  ColorPalette.TextMuted, center("123 Katipunan Ave, Quezon City") + "\n");
+            Append(FontSmall,  ColorPalette.TextMuted, center("Tel: (02) 8-BREW-HAVEN") + "\n");
+            Append(FontSmall,  ColorPalette.TextMuted, center("VAT REG TIN: 123-456-789-000") + "\n");
+            Append(FontSmall,  ColorPalette.Divider,   Dashes() + "\n");
+
+            Append(FontBold,   ColorPalette.TextMid,   $"  TXN #{_transactionId:D4}".PadRight(30) +
+                                                        $"{_order.CreatedAt:hh:mm tt}" + "\n");
+            Append(FontSmall,  ColorPalette.TextMuted, $"  {_order.CreatedAt:dddd, MMMM dd, yyyy}" + "\n");
+            Append(FontSmall,  ColorPalette.Divider,   Dashes() + "\n");
+
+            // Items
+            Append(FontBold,   ColorPalette.Espresso,  " ITEM".PadRight(28) + "QTY".PadLeft(4) + "AMOUNT".PadLeft(10) + "\n");
+            Append(FontSmall,  ColorPalette.Divider,   Dashes() + "\n");
+
+            foreach (var oi in _order.Items)
+            {
+                string name  = Truncate(oi.DisplayName, 24);
+                string line1 = $" {name}".PadRight(28) +
+                               $"{oi.Quantity,4}" +
+                               $" {oi.TotalPrice,8:F2}";
+                Append(FontBold, ColorPalette.TextDark, line1 + "\n");
+
+                // Unit price
+                Append(FontSmall, ColorPalette.TextMuted,
+                    $"   @ ₱{oi.UnitPrice:F2} each".PadRight(42) + "\n");
+
+                // Add-ons
+                if (!string.IsNullOrEmpty(oi.AddOnsDescription))
+                {
+                    foreach (var ao in oi.SelectedAddOns.Where(a => a.IsSelected))
+                        Append(FontSmall, ColorPalette.TextMuted,
+                            $"   + {ao.Name}".PadRight(34) + $"+₱{ao.Price:F2}".PadLeft(8) + "\n");
+                }
+            }
+
+            Append(FontSmall,  ColorPalette.Divider,   Dashes() + "\n");
+
+            // Totals
+            TotalLine("  Subtotal:",     $"₱{_order.Subtotal:F2}",   FontNormal, ColorPalette.TextMid);
+            TotalLine($"  VAT (12%):",   $"₱{_order.TaxAmount:F2}",  FontNormal, ColorPalette.TextMid);
+            Append(FontSmall,  ColorPalette.Divider,   Dashes() + "\n");
+            TotalLine("  TOTAL:",        $"₱{_order.Total:F2}",      FontTotal,  ColorPalette.Espresso);
+            TotalLine("  Cash Tendered:",$"₱{_amountPaid:F2}",       FontNormal, ColorPalette.TextMid);
+            TotalLine("  CHANGE:",       $"₱{_change:F2}",           FontBold,   ColorPalette.PriceGreen);
+
+            Append(FontSmall,  ColorPalette.Divider,   Dashes() + "\n");
+            Append(FontSmall,  ColorPalette.TextMuted, center($"Items Sold: {_order.ItemCount}") + "\n");
+            Append(FontSmall,  ColorPalette.Divider,   Dashes() + "\n\n");
+            Append(FontNormal, ColorPalette.Mocha,     center("Thank you for visiting") + "\n");
+            Append(FontBold,   ColorPalette.Espresso,  center("Brew Haven Coffee!") + "\n");
+            Append(FontSmall,  ColorPalette.TextMuted, center("Enjoy your coffee ☕") + "\n\n");
+            Append(FontSmall,  ColorPalette.TextMuted, center("This serves as your official receipt") + "\n");
+            Append(FontSmall,  ColorPalette.TextMuted, center("Please keep for your records") + "\n\n");
+
+            // Barcode-style (fake) decorative line
+            Append(FontNormal, ColorPalette.TextDark,
+                "  " + new string('|', 44).Replace("||||", "|||| ") + "\n");
+            Append(FontSmall,  ColorPalette.TextMuted,
+                center($"*{_transactionId:D4}{_order.CreatedAt:yyMMddHHmmss}*") + "\n");
+
+            _rtbReceipt.SelectionStart = 0;
+        }
+
+        private void Append(Font font, Color color, string text)
+        {
+            int start = _rtbReceipt.TextLength;
+            _rtbReceipt.AppendText(text);
+            _rtbReceipt.Select(start, text.Length);
+            _rtbReceipt.SelectionFont  = font;
+            _rtbReceipt.SelectionColor = color;
+            _rtbReceipt.SelectionStart = _rtbReceipt.TextLength;
+        }
+
+        private void TotalLine(string label, string value, Font font, Color color)
+        {
+            string line = label.PadRight(30) + value.PadLeft(12) + "\n";
+            Append(font, color, line);
+        }
+
+        private static string Dashes()  => new string('-', 42);
+        private static string center(string s) => s.PadLeft((42 + s.Length) / 2).PadRight(42);
+        private static string Truncate(string s, int max) =>
+            s.Length > max ? s.Substring(0, max - 1) + "…" : s;
+
+        // ── Print ─────────────────────────────────────────────────────────
+        private void BtnPrint_Click(object sender, EventArgs e)
+        {
+            var pd = new PrintDocument();
+            pd.PrintPage += (s, ev) =>
+            {
+                var g      = ev.Graphics;
+                float yPos = 40f;
+                float left = 60f;
+
+                void PrintLine(Font f, Color c, string text)
+                {
+                    using (var brush = new SolidBrush(c))
+                        g.DrawString(text, f, brush, left, yPos);
+                    yPos += f.GetHeight() + 2;
+                }
+
+                PrintLine(FontHeader, ColorPalette.Espresso, "      BREW HAVEN COFFEE");
+                PrintLine(FontSmall,  ColorPalette.TextMuted, "   123 Katipunan Ave, Quezon City");
+                PrintLine(FontSmall,  ColorPalette.Divider,   Dashes());
+                PrintLine(FontBold,   ColorPalette.TextMid,   $"TXN #{_transactionId:D4}   {_order.CreatedAt:MM/dd/yyyy hh:mm tt}");
+                PrintLine(FontSmall,  ColorPalette.Divider,   Dashes());
+
+                foreach (var oi in _order.Items)
+                {
+                    PrintLine(FontBold,  ColorPalette.TextDark,
+                        $"{oi.DisplayName,-22} x{oi.Quantity,-2} ₱{oi.TotalPrice,7:F2}");
+                    if (!string.IsNullOrEmpty(oi.AddOnsDescription))
+                        PrintLine(FontSmall, ColorPalette.TextMuted, $"  + {oi.AddOnsDescription}");
+                }
+
+                PrintLine(FontSmall,  ColorPalette.Divider,   Dashes());
+                PrintLine(FontNormal, ColorPalette.TextMid,   $"{"Subtotal:",-25}₱{_order.Subtotal,9:F2}");
+                PrintLine(FontNormal, ColorPalette.TextMid,   $"{"VAT (12%):",-25}₱{_order.TaxAmount,9:F2}");
+                PrintLine(FontTotal,  ColorPalette.Espresso,  $"{"TOTAL:",-25}₱{_order.Total,9:F2}");
+                PrintLine(FontNormal, ColorPalette.TextMid,   $"{"Cash:",-25}₱{_amountPaid,9:F2}");
+                PrintLine(FontBold,   ColorPalette.PriceGreen,$"{"CHANGE:",-25}₱{_change,9:F2}");
+                PrintLine(FontSmall,  ColorPalette.Divider,   Dashes());
+                PrintLine(FontBold,   ColorPalette.Espresso,  "       Thank you! Enjoy your coffee ☕");
+            };
+
+            using (var dlg = new PrintDialog { Document = pd })
+            {
+                if (dlg.ShowDialog() == DialogResult.OK)
+                    pd.Print();
+            }
+        }
+
+        private static Button FooterBtn(string text, Point loc, Color color, int width)
+        {
+            var btn = new Button
+            {
+                Text      = text,
+                Location  = loc,
+                Size      = new Size(width, 40),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = color,
+                ForeColor = Color.White,
+                Font      = new Font("Segoe UI", 10f, FontStyle.Bold),
+                Cursor    = Cursors.Hand,
+                UseVisualStyleBackColor = false
+            };
+            btn.FlatAppearance.BorderSize = 0;
+            return btn;
+        }
+    }
+}
