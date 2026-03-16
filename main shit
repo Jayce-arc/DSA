@@ -8,7 +8,7 @@ using Timer = System.Windows.Forms.Timer;
 using CoffeeShopPOS.Data;
 using CoffeeShopPOS.Helpers;
 using CoffeeShopPOS.Models;
-using Timer = System.Windows.Forms.Timer;
+
 namespace CoffeeShopPOS.Forms
 {
     /// <summary>
@@ -18,10 +18,10 @@ namespace CoffeeShopPOS.Forms
     public class MainForm : Form
     {
         // ── Application state ──────────────────────────────────────────────
-        private readonly Order              _order       = new Order();
-        private readonly List<MenuItem>     _allItems    = MenuData.GetAllMenuItems();
-        private static  int                 _txnCounter  = 1000;
-        private         string              _activeCategory = "All";
+        private readonly Order          _order       = new Order();
+        private readonly List<MenuItem> _allItems    = MenuData.GetAllMenuItems();
+        private static  int             _txnCounter  = 1000;
+        private         string          _activeCategory = "All";
 
         // ── Layout panels ─────────────────────────────────────────────────
         private Panel           _pnlHeader;
@@ -75,7 +75,7 @@ namespace CoffeeShopPOS.Forms
             MinimumSize     = new Size(1140, 720);
             Size            = new Size(1280, 800);
             StartPosition   = FormStartPosition.CenterScreen;
-            BackColor       = ColorPalette.MenuBg;
+            BackColor       = Color.FromArgb(249, 249, 249); // Clean Off-White Background
             Font            = new Font("Segoe UI", 9.5f);
             Icon            = SystemIcons.Application;
 
@@ -96,7 +96,7 @@ namespace CoffeeShopPOS.Forms
             {
                 Dock      = DockStyle.Top,
                 Height    = HEADER_H,
-                BackColor = ColorPalette.HeaderBg
+                BackColor = Color.White // Stark White Header
             };
 
             // Coffee cup favicon
@@ -104,7 +104,7 @@ namespace CoffeeShopPOS.Forms
             {
                 Text      = "☕",
                 Font      = new Font("Segoe UI Emoji", 24f),
-                ForeColor = ColorPalette.Caramel,
+                ForeColor = Color.FromArgb(0, 98, 65), // Starbucks Green
                 AutoSize  = true,
                 Location  = new Point(18, 16)
             };
@@ -113,7 +113,7 @@ namespace CoffeeShopPOS.Forms
             {
                 Text      = "BREW HAVEN",
                 Font      = new Font("Segoe UI", 22f, FontStyle.Bold),
-                ForeColor = ColorPalette.Cream,
+                ForeColor = Color.Black, // Dark Text
                 AutoSize  = true,
                 Location  = new Point(58, 18)
             };
@@ -122,7 +122,7 @@ namespace CoffeeShopPOS.Forms
             {
                 Text      = "Coffee & Pastry Shop",
                 Font      = new Font("Segoe UI", 9.5f, FontStyle.Italic),
-                ForeColor = ColorPalette.Latte,
+                ForeColor = Color.FromArgb(100, 100, 100), // Gray subtitle
                 AutoSize  = true,
                 Location  = new Point(62, 48)
             };
@@ -131,14 +131,14 @@ namespace CoffeeShopPOS.Forms
             {
                 Text      = $"TXN #{ _txnCounter + 1:D4}",
                 Font      = new Font("Segoe UI", 10f, FontStyle.Bold),
-                ForeColor = ColorPalette.Caramel,
+                ForeColor = Color.FromArgb(0, 98, 65), // Starbucks Green
                 AutoSize  = true
             };
 
             _lblClock = new Label
             {
                 Font      = new Font("Segoe UI", 11f),
-                ForeColor = ColorPalette.Cream,
+                ForeColor = Color.Black, // Dark Text
                 AutoSize  = true,
                 TextAlign = ContentAlignment.MiddleRight
             };
@@ -163,7 +163,7 @@ namespace CoffeeShopPOS.Forms
             {
                 Dock      = DockStyle.Top,
                 Height    = CATBAR_H,
-                BackColor = ColorPalette.CategoryBar,
+                BackColor = Color.White,
                 Padding   = new Padding(12, 8, 12, 8)
             };
 
@@ -186,14 +186,14 @@ namespace CoffeeShopPOS.Forms
                     Size      = new Size(cat.Length * 11 + 36, 36),
                     Margin    = new Padding(0, 0, 8, 0),
                     FlatStyle = FlatStyle.Flat,
-                    BackColor = cat == "All" ? ColorPalette.CategoryActive : Color.Transparent,
-                    ForeColor = cat == "All" ? ColorPalette.Espresso       : ColorPalette.CategoryText,
+                    BackColor = cat == "All" ? Color.FromArgb(0, 98, 65) : Color.Transparent, // Green if active
+                    ForeColor = cat == "All" ? Color.White : Color.Black,
                     Font      = new Font("Segoe UI", 9.5f, cat == "All" ? FontStyle.Bold : FontStyle.Regular),
                     Cursor    = Cursors.Hand,
                     UseVisualStyleBackColor = false
                 };
                 btn.FlatAppearance.BorderSize  = 0;
-                btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(80, 255, 255, 255);
+                btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(20, 0, 0, 0); // Subtle gray hover
                 btn.Click += CatBtn_Click;
                 _catButtons.Add(btn);
                 flp.Controls.Add(btn);
@@ -208,13 +208,13 @@ namespace CoffeeShopPOS.Forms
         {
             _pnlContent = new Panel
             {
-                BackColor = ColorPalette.MenuBg
+                BackColor = Color.FromArgb(249, 249, 249) // Clean Off-White
             };
 
             // ── Scrollable menu grid ──────────────────────────────────────
             var menuWrapper = new Panel
             {
-                BackColor = ColorPalette.MenuBg,
+                BackColor = Color.FromArgb(249, 249, 249),
                 AutoScroll = false
             };
 
@@ -222,7 +222,7 @@ namespace CoffeeShopPOS.Forms
             {
                 Dock         = DockStyle.Fill,
                 AutoScroll   = true,
-                BackColor    = ColorPalette.MenuBg,
+                BackColor    = Color.FromArgb(249, 249, 249),
                 Padding      = new Padding(14, 14, 0, 14),
                 WrapContents = true
             };
@@ -236,7 +236,7 @@ namespace CoffeeShopPOS.Forms
         {
             _pnlOrder = new Panel
             {
-                BackColor = ColorPalette.OrderPanelBg,
+                BackColor = Color.White,
                 Width     = SIDEBAR_W
             };
 
@@ -245,13 +245,13 @@ namespace CoffeeShopPOS.Forms
             {
                 Dock      = DockStyle.Top,
                 Height    = 54,
-                BackColor = ColorPalette.DarkMocha
+                BackColor = Color.White // Clean white instead of dark brown
             };
             var lblCart = new Label
             {
                 Text      = "🛒  Your Order",
                 Font      = new Font("Segoe UI", 13f, FontStyle.Bold),
-                ForeColor = ColorPalette.Cream,
+                ForeColor = Color.Black,
                 AutoSize  = false,
                 Bounds    = new Rectangle(14, 0, 260, 54),
                 TextAlign = ContentAlignment.MiddleLeft
@@ -260,11 +260,21 @@ namespace CoffeeShopPOS.Forms
             {
                 Text      = "0 items",
                 Font      = new Font("Segoe UI", 9f),
-                ForeColor = ColorPalette.Latte,
+                ForeColor = Color.Gray,
                 AutoSize  = false,
                 Bounds    = new Rectangle(0, 0, SIDEBAR_W - 14, 54),
                 TextAlign = ContentAlignment.MiddleRight
             };
+            
+            // Add a simple border line under the title for separation
+            var titleDivider = new Panel
+            {
+                Dock = DockStyle.Bottom,
+                Height = 1,
+                BackColor = Color.FromArgb(230, 230, 230)
+            };
+            titleBar.Controls.Add(titleDivider);
+
             titleBar.Controls.AddRange(new Control[] { lblCart, _lblItemCount });
             _pnlOrder.Controls.Add(titleBar);
 
@@ -272,7 +282,7 @@ namespace CoffeeShopPOS.Forms
             _pnlOrderItems = new Panel
             {
                 AutoScroll  = true,
-                BackColor   = ColorPalette.OrderPanelBg,
+                BackColor   = Color.White,
                 Location    = new Point(0, 54),
                 Width       = SIDEBAR_W
             };
@@ -291,7 +301,7 @@ namespace CoffeeShopPOS.Forms
             // Payment block
             _pnlPayment = new Panel
             {
-                BackColor = ColorPalette.TotalBarBg,
+                BackColor = Color.FromArgb(249, 249, 249), // Slight gray to offset from totals
                 Width     = SIDEBAR_W,
                 Height    = 192
             };
@@ -313,7 +323,7 @@ namespace CoffeeShopPOS.Forms
                     Size      = new Size(180, 24),
                     Font      = big ? new Font("Segoe UI", 10.5f, FontStyle.Bold)
                                     : new Font("Segoe UI", 9.5f),
-                    ForeColor = big ? ColorPalette.Espresso : ColorPalette.TextMid,
+                    ForeColor = big ? Color.Black : Color.FromArgb(80, 80, 80),
                     TextAlign = ContentAlignment.MiddleLeft
                 };
                 valLbl = new Label
@@ -323,7 +333,7 @@ namespace CoffeeShopPOS.Forms
                     Size      = new Size(SIDEBAR_W - 204, 24),
                     Font      = big ? new Font("Segoe UI", 10.5f, FontStyle.Bold)
                                     : new Font("Segoe UI", 9.5f),
-                    ForeColor = big ? ColorPalette.Espresso : ColorPalette.TextMid,
+                    ForeColor = big ? Color.Black : Color.FromArgb(80, 80, 80),
                     TextAlign = ContentAlignment.MiddleRight
                 };
                 _pnlTotals.Controls.Add(lbl);
@@ -338,7 +348,7 @@ namespace CoffeeShopPOS.Forms
             {
                 Location  = new Point(14, y),
                 Size      = new Size(SIDEBAR_W - 28, 1),
-                BackColor = ColorPalette.Divider
+                BackColor = Color.FromArgb(230, 230, 230) // Light divider
             };
             _pnlTotals.Controls.Add(div);
             y += 8;
@@ -354,7 +364,7 @@ namespace CoffeeShopPOS.Forms
             {
                 Text      = "Cash Tendered  (₱)",
                 Font      = new Font("Segoe UI", 9.5f),
-                ForeColor = ColorPalette.Latte,
+                ForeColor = Color.FromArgb(100, 100, 100),
                 Location  = new Point(14, y),
                 AutoSize  = true
             };
@@ -365,8 +375,8 @@ namespace CoffeeShopPOS.Forms
                 Location     = new Point(14, y),
                 Size         = new Size(SIDEBAR_W - 28, 38),
                 Font         = new Font("Segoe UI", 15f, FontStyle.Bold),
-                ForeColor    = Color.White,
-                BackColor    = Color.FromArgb(70, 48, 28),
+                ForeColor    = Color.Black,
+                BackColor    = Color.White,
                 BorderStyle  = BorderStyle.FixedSingle,
                 TextAlign    = HorizontalAlignment.Right,
                 Text         = "0"
@@ -378,7 +388,7 @@ namespace CoffeeShopPOS.Forms
             {
                 Text      = "Change",
                 Font      = new Font("Segoe UI", 9.5f),
-                ForeColor = ColorPalette.Latte,
+                ForeColor = Color.FromArgb(100, 100, 100),
                 Location  = new Point(14, y),
                 AutoSize  = true
             };
@@ -386,7 +396,7 @@ namespace CoffeeShopPOS.Forms
             {
                 Text      = "₱0.00",
                 Font      = new Font("Segoe UI", 14f, FontStyle.Bold),
-                ForeColor = ColorPalette.Caramel,
+                ForeColor = Color.FromArgb(0, 98, 65), // Green Change amount
                 Location  = new Point(SIDEBAR_W / 2, y),
                 Size      = new Size(SIDEBAR_W / 2 - 14, 28),
                 TextAlign = ContentAlignment.MiddleRight
@@ -399,7 +409,7 @@ namespace CoffeeShopPOS.Forms
                 Location  = new Point(14, y),
                 Size      = new Size(SIDEBAR_W - 28, 44),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = ColorPalette.BtnCharge,
+                BackColor = Color.FromArgb(0, 98, 65), // Starbucks Green
                 ForeColor = Color.White,
                 Font      = new Font("Segoe UI", 13f, FontStyle.Bold),
                 Cursor    = Cursors.Hand,
@@ -415,8 +425,8 @@ namespace CoffeeShopPOS.Forms
                 Location  = new Point(14, y),
                 Size      = new Size(SIDEBAR_W - 28, 36),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = ColorPalette.BtnClear,
-                ForeColor = Color.White,
+                BackColor = Color.FromArgb(240, 240, 240), // Light Gray
+                ForeColor = Color.Black,
                 Font      = new Font("Segoe UI", 10f, FontStyle.Bold),
                 Cursor    = Cursors.Hand,
                 UseVisualStyleBackColor = false
@@ -485,7 +495,7 @@ namespace CoffeeShopPOS.Forms
             var card = new Panel
             {
                 Size      = new Size(CARD_W, CARD_H),
-                BackColor = ColorPalette.CardBg,
+                BackColor = Color.White,
                 Cursor    = Cursors.Hand,
                 Margin    = new Padding(0, 0, 12, 12),
                 Tag       = item
@@ -498,7 +508,7 @@ namespace CoffeeShopPOS.Forms
                 Location = new Point(11, 12),
                 Size     = new Size(140, 108),
                 SizeMode = PictureBoxSizeMode.Zoom,
-                BackColor= Color.FromArgb(248, 244, 238),
+                BackColor= Color.White,
                 Image    = ImageGenerator.GetMenuItemImage(item),
                 Tag      = item,
                 Cursor   = Cursors.Hand
@@ -510,7 +520,7 @@ namespace CoffeeShopPOS.Forms
                 Text      = item.Category.Replace(" Coffee", ""),
                 Font      = new Font("Segoe UI", 7f),
                 ForeColor = Color.White,
-                BackColor = item.ThemeColor,
+                BackColor = Color.FromArgb(0, 98, 65), // All badges Green to fit the look
                 AutoSize  = false,
                 Size      = new Size(64, 16),
                 TextAlign = ContentAlignment.MiddleCenter,
@@ -523,7 +533,7 @@ namespace CoffeeShopPOS.Forms
             {
                 Text      = item.Name,
                 Font      = new Font("Segoe UI", 9.5f, FontStyle.Bold),
-                ForeColor = ColorPalette.TextDark,
+                ForeColor = Color.Black,
                 AutoSize  = false,
                 Size      = new Size(CARD_W - 22, 36),
                 TextAlign = ContentAlignment.MiddleLeft,
@@ -536,7 +546,7 @@ namespace CoffeeShopPOS.Forms
             {
                 Text      = $"₱{item.BasePrice:F0}",
                 Font      = new Font("Segoe UI", 11f, FontStyle.Bold),
-                ForeColor = ColorPalette.PriceGreen,
+                ForeColor = Color.FromArgb(0, 98, 65), // Green price
                 AutoSize  = false,
                 Size      = new Size(CARD_W - 22, 24),
                 TextAlign = ContentAlignment.MiddleLeft,
@@ -551,7 +561,7 @@ namespace CoffeeShopPOS.Forms
                 {
                     Text      = "S/M/L",
                     Font      = new Font("Segoe UI", 7f),
-                    ForeColor = ColorPalette.TextMuted,
+                    ForeColor = Color.Gray,
                     AutoSize  = true,
                     Location  = new Point(CARD_W - 50, 162),
                     Tag       = item
@@ -569,8 +579,8 @@ namespace CoffeeShopPOS.Forms
             card.Click += MenuCard_Click;
 
             // Hover highlight
-            void enter(object s, EventArgs e) => card.BackColor = ColorPalette.CardHover;
-            void leave(object s, EventArgs e) => card.BackColor = ColorPalette.CardBg;
+            void enter(object s, EventArgs e) => card.BackColor = Color.FromArgb(242, 242, 242);
+            void leave(object s, EventArgs e) => card.BackColor = Color.White;
 
             card.MouseEnter  += enter;
             card.MouseLeave  += leave;
@@ -590,7 +600,7 @@ namespace CoffeeShopPOS.Forms
             g.SmoothingMode = SmoothingMode.AntiAlias;
 
             // Drop shadow
-            using (var shadow = new SolidBrush(Color.FromArgb(18, 0, 0, 0)))
+            using (var shadow = new SolidBrush(Color.FromArgb(10, 0, 0, 0))) // Lighter shadow
                 g.FillRoundedRectangle(shadow, 3, 3, c.Width - 4, c.Height - 4, 10);
 
             // Card body
@@ -598,7 +608,7 @@ namespace CoffeeShopPOS.Forms
                 g.FillRoundedRectangle(b, 0, 0, c.Width - 3, c.Height - 3, 10);
 
             // Border
-            using (var pen = new Pen(ColorPalette.CardBorder, 1f))
+            using (var pen = new Pen(Color.FromArgb(220, 220, 220), 1f))
                 g.DrawRoundedRectangle(pen, 0, 0, c.Width - 4, c.Height - 4, 10);
         }
 
@@ -640,7 +650,7 @@ namespace CoffeeShopPOS.Forms
             {
                 Location  = new Point(0, 0),
                 Size      = new Size(4, rowH),
-                BackColor = oi.Item.ThemeColor
+                BackColor = Color.FromArgb(0, 98, 65) // Clean Green stripe
             };
 
             // Name + size
@@ -648,7 +658,7 @@ namespace CoffeeShopPOS.Forms
             {
                 Text      = oi.DisplayName,
                 Font      = new Font("Segoe UI", 9f, FontStyle.Bold),
-                ForeColor = ColorPalette.TextDark,
+                ForeColor = Color.Black,
                 AutoSize  = false,
                 Location  = new Point(12, 8),
                 Size      = new Size(200, 20),
@@ -662,7 +672,7 @@ namespace CoffeeShopPOS.Forms
                 {
                     Text      = "+ " + oi.AddOnsDescription,
                     Font      = new Font("Segoe UI", 7.5f),
-                    ForeColor = ColorPalette.TextMuted,
+                    ForeColor = Color.Gray,
                     AutoSize  = false,
                     Location  = new Point(12, 28),
                     Size      = new Size(220, 18),
@@ -677,7 +687,7 @@ namespace CoffeeShopPOS.Forms
             {
                 Text      = oi.Quantity.ToString(),
                 Font      = new Font("Segoe UI", 9.5f, FontStyle.Bold),
-                ForeColor = ColorPalette.Espresso,
+                ForeColor = Color.Black,
                 AutoSize  = false,
                 Size      = new Size(30, 22),
                 TextAlign = ContentAlignment.MiddleCenter,
@@ -706,7 +716,7 @@ namespace CoffeeShopPOS.Forms
             {
                 Text      = $"₱{oi.TotalPrice:F2}",
                 Font      = new Font("Segoe UI", 9.5f, FontStyle.Bold),
-                ForeColor = ColorPalette.Espresso,
+                ForeColor = Color.FromArgb(0, 98, 65), // Green Price
                 AutoSize  = false,
                 Size      = new Size(80, rowH),
                 TextAlign = ContentAlignment.MiddleRight,
@@ -720,8 +730,8 @@ namespace CoffeeShopPOS.Forms
                 Location  = new Point(SIDEBAR_W - 30, (rowH - 24) / 2),
                 Size      = new Size(24, 24),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = ColorPalette.BtnRemove,
-                ForeColor = Color.White,
+                BackColor = Color.FromArgb(220, 220, 220), // Light Gray
+                ForeColor = Color.Black,
                 Font      = new Font("Segoe UI", 8f, FontStyle.Bold),
                 Cursor    = Cursors.Hand,
                 UseVisualStyleBackColor = false
@@ -734,7 +744,7 @@ namespace CoffeeShopPOS.Forms
             };
 
             // Hover
-            row.MouseEnter += (s, e) => row.BackColor = ColorPalette.CardHover;
+            row.MouseEnter += (s, e) => row.BackColor = Color.FromArgb(242, 242, 242);
             row.MouseLeave += (s, e) => row.BackColor = Color.White;
 
             row.Controls.AddRange(new Control[]
@@ -751,8 +761,8 @@ namespace CoffeeShopPOS.Forms
                 Location  = loc,
                 Size      = new Size(24, 22),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = ColorPalette.Divider,
-                ForeColor = ColorPalette.TextDark,
+                BackColor = Color.FromArgb(240, 240, 240), // Very light gray
+                ForeColor = Color.Black,
                 Font      = new Font("Segoe UI", 10f, FontStyle.Bold),
                 Cursor    = Cursors.Hand,
                 UseVisualStyleBackColor = false
@@ -783,13 +793,13 @@ namespace CoffeeShopPOS.Forms
                 decimal change = _order.CalculateChange(paid);
                 _lblChangeVal.Text = $"₱{change:F2}";
                 _lblChangeVal.ForeColor = change < 0
-                    ? ColorPalette.BtnClear
-                    : ColorPalette.Caramel;
+                    ? Color.Red // Underpaid warning
+                    : Color.FromArgb(0, 98, 65); // Green
             }
             else
             {
                 _lblChangeVal.Text      = "₱0.00";
-                _lblChangeVal.ForeColor = ColorPalette.Caramel;
+                _lblChangeVal.ForeColor = Color.FromArgb(0, 98, 65);
             }
         }
 
@@ -820,8 +830,8 @@ namespace CoffeeShopPOS.Forms
             foreach (var b in _catButtons)
             {
                 bool active = (string)b.Tag == cat;
-                b.BackColor = active ? ColorPalette.CategoryActive : Color.Transparent;
-                b.ForeColor = active ? ColorPalette.Espresso       : ColorPalette.CategoryText;
+                b.BackColor = active ? Color.FromArgb(0, 98, 65) : Color.Transparent;
+                b.ForeColor = active ? Color.White : Color.Black;
                 b.Font      = new Font("Segoe UI", 9.5f,
                                    active ? FontStyle.Bold : FontStyle.Regular);
             }
@@ -861,11 +871,11 @@ namespace CoffeeShopPOS.Forms
             {
                 if (c is Panel p && p.Tag is MenuItem mi && mi.Id == itemId)
                 {
-                    p.BackColor = Color.FromArgb(210, 255, 220);
+                    p.BackColor = Color.FromArgb(215, 235, 225); // Light Mint Flash
                     var t = new Timer { Interval = 300 };
                     t.Tick += (s, e) =>
                     {
-                        p.BackColor = ColorPalette.CardBg;
+                        p.BackColor = Color.White;
                         ((Timer)s).Stop();
                     };
                     t.Start();
