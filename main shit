@@ -8,7 +8,7 @@ using Timer = System.Windows.Forms.Timer;
 using CoffeeShopPOS.Data;
 using CoffeeShopPOS.Helpers;
 using CoffeeShopPOS.Models;
-
+using Timer = System.Windows.Forms.Timer;
 namespace CoffeeShopPOS.Forms
 {
     /// <summary>
