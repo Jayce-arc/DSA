@@ -1,4 +1,4 @@
-# Cafe 104 - Enterprise Point of Sale (POS) System
+# Cafe  - Enterprise Point of Sale (POS) System
 
 A modern, high-performance desktop POS system designed for coffee shops and fast-casual dining environments. Built entirely via programmatic UI construction in C# Windows Forms with a warm mocha-cream theme.
 
